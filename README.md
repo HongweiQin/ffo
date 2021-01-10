@@ -4,7 +4,7 @@ FFO can execute file operations against specified files. It is useful for file s
 
 ## Build
 
-`make`
+make
 
 ## Run
 
