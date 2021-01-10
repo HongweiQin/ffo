@@ -2,6 +2,7 @@
 
 #define CMD_BUF_LEN (256)
 #define MAX_PATH_LEN (64)
+#define NR_REGISTERS (16)
 static char *greetings = "Welcome to use flexible file operator.\n";
 
 enum {
@@ -38,7 +39,9 @@ static char *opname[] = {	"none",
 //TODO: Use union to save space.
 struct operation_info {
 	enum operation op;
+
 	int fd;
+	unsigned fd_reg;
 /* For open */
 	char filename[MAX_PATH_LEN];
 	int open_flags;
@@ -169,6 +172,10 @@ VALUE_START_FOUND:
 		opi->offset = atol(value_base);
 		return;
 	}
+	if (!strcmp(arg_base, "fdr") || !strcmp(arg_base, "fdregister")) {
+		opi->fd_reg = atoi(value_base);
+		return;
+	}
 
 }
 
@@ -286,7 +293,22 @@ static ssize_t do_pwrite(struct operation_info *opi)
 	return ret;
 }
 
-static void execute_operation(struct operation_info *opi)
+/* Save fd to a register if needed. */
+static void save_to_fdreg(struct operation_info *opi, int *regs, int fd_value)
+{
+	if (opi->fd_reg && opi->fd_reg <= NR_REGISTERS)
+		regs[opi->fd_reg - 1] = fd_value;
+}
+
+/* Use a fd register to set opi->fd if needed. */
+static void set_fd_if_needed(struct operation_info *opi, int *regs)
+{
+	if (opi->fd_reg && opi->fd_reg <= NR_REGISTERS)
+		opi->fd = regs[opi->fd_reg - 1];
+}
+
+
+static void execute_operation(struct operation_info *opi, int *regs)
 {
 	int ret;
 	ssize_t ret2;
@@ -295,33 +317,41 @@ static void execute_operation(struct operation_info *opi)
 	{
 	case OP_OPEN:
 		ret = open(opi->filename, opi->open_flags, 0644);
+		save_to_fdreg(opi, regs, ret);
 		printf("Open() return with %d\n", ret);
 		break;
 	case OP_CLOSE:
+		set_fd_if_needed(opi, regs);
 		ret = close(opi->fd);
 		printf("Close(fd=%d) return with %d\n", opi->fd, ret);
 		break;
 	case OP_READ:
+		set_fd_if_needed(opi, regs);
 		ret2 = do_read(opi);
 		printf("read(fd=%d) return with %d\n", opi->fd, ret2);
 		break;
 	case OP_WRITE:
+		set_fd_if_needed(opi, regs);
 		ret2 = do_write(opi);
 		printf("write(fd=%d) return with %d\n", opi->fd, ret2);
 		break;
 	case OP_PWRITE:
+		set_fd_if_needed(opi, regs);
 		ret2 = do_pwrite(opi);
 		printf("pwrite(fd=%d) return with %d\n", opi->fd, ret2);
 		break;
 	case OP_PREAD:
+		set_fd_if_needed(opi, regs);
 		ret2 = do_pread(opi);
 		printf("pread(fd=%d) return with %d\n", opi->fd, ret2);
 		break;
 	case OP_FSYNC:
+		set_fd_if_needed(opi, regs);
 		ret = fsync(opi->fd);
 		printf("fsync(fd=%d) return with %d\n", opi->fd, ret);
 		break;
 	case OP_FDATASYNC:
+		set_fd_if_needed(opi, regs);
 		ret = fdatasync(opi->fd);
 		printf("fdatasync(fd=%d) return with %d\n", opi->fd, ret);
 		break;
@@ -357,6 +387,7 @@ static void print_manual(void)
 	printf("\t\tNote: no space nearby \'|\'\n");
 	printf("\trwcount = int\n");
 	printf("\toffset = long\n");
+	printf("\tfdr/fdregister = unsigned\n");
 }
 
 static void reset_command_info(struct operation_info *opinfo)
@@ -431,14 +462,14 @@ static void print_properties(struct operation_info *opinfo)
 }
 
 
-void exec_allinone(char *ubuf)
+void exec_allinone(char *ubuf, int *regs)
 {
 	struct operation_info opinfo;
 
 	reset_command_info(&opinfo);
 
 	set_properties(&opinfo, ubuf);
-	execute_operation(&opinfo);
+	execute_operation(&opinfo, regs);
 }
 
 
@@ -447,6 +478,7 @@ int main(int argc, char *argv[])
 	int inp;
 	char usr_cmd_buf[CMD_BUF_LEN];
 	struct operation_info opinfo;
+	int registers[NR_REGISTERS];
 
 	reset_command_info(&opinfo);
 	printf(greetings);
@@ -463,7 +495,7 @@ int main(int argc, char *argv[])
 			print_properties(&opinfo);
 			break;
 		case INP_EXECUTE:
-			execute_operation(&opinfo);
+			execute_operation(&opinfo, registers);
 			reset_command_info(&opinfo);
 			break;
 		case INP_RUNSCRIPT:
@@ -476,7 +508,7 @@ int main(int argc, char *argv[])
 			print_manual();
 			break;
 		case INP_ALLINONE:
-			exec_allinone(&usr_cmd_buf[1]);
+			exec_allinone(&usr_cmd_buf[1], registers);
 			break;
 		case INP_END:
 			goto OUT_CLEANUP;
