@@ -12,6 +12,8 @@ make
 
 ## Usage
 
+### Simple usage
+
 ```
 [root@localhost ffo]# ./ffo 
 Welcome to use flexible file operator.
@@ -32,3 +34,11 @@ Command (m for help): q
 Bye
 
 ```
+
+### Run a sequence of commands
+
+TODO
+
+### Run a script
+
+TODO
