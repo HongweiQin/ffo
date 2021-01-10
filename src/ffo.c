@@ -358,7 +358,9 @@ void exec_allinone(char *ubuf)
 	struct operation_info opinfo;
 
 	reset_command_info(&opinfo);
-	printf("Not supported yet.\n");
+
+	set_properties(&opinfo, ubuf);
+	execute_operation(&opinfo);
 }
 
 
@@ -396,7 +398,7 @@ int main(int argc, char *argv[])
 			print_manual();
 			break;
 		case INP_ALLINONE:
-			exec_allinone(usr_cmd_buf);
+			exec_allinone(&usr_cmd_buf[1]);
 			break;
 		case INP_END:
 			goto OUT_CLEANUP;
