@@ -12,6 +12,8 @@ make
 
 ## Usage
 
+For more detailed descriptions, try the `m` command.
+
 ### Simple usage
 
 ```

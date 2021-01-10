@@ -23,6 +23,8 @@ enum operation {
 	OP_WRITE,
 	OP_PWRITE,
 	OP_CLOSE,
+	OP_FSYNC,
+	OP_FDATASYNC,
 	OP_NUM,
 };
 
@@ -141,6 +143,10 @@ VALUE_START_FOUND:
 			opi->op = OP_PWRITE;
 		else if (!strcmp(value_base, "close"))
 			opi->op = OP_CLOSE;
+		else if (!strcmp(value_base, "fsync"))
+			opi->op = OP_FSYNC;
+		else if (!strcmp(value_base, "fdatasync"))
+			opi->op = OP_FDATASYNC;
 		return;
 	}
 	if (!strcmp(arg_base, "fd")) {
@@ -311,6 +317,14 @@ static void execute_operation(struct operation_info *opi)
 		ret2 = do_pread(opi);
 		printf("pread(fd=%d) return with %d\n", opi->fd, ret2);
 		break;
+	case OP_FSYNC:
+		ret = fsync(opi->fd);
+		printf("fsync(fd=%d) return with %d\n", opi->fd, ret);
+		break;
+	case OP_FDATASYNC:
+		ret = fdatasync(opi->fd);
+		printf("fdatasync(fd=%d) return with %d\n", opi->fd, ret);
+		break;
 	default:
 		printf("Execute nothing\n");
 		return;
@@ -336,7 +350,7 @@ static void print_manual(void)
 	printf("\n");
 
 	printf("Arguments and values for s:\n");
-	printf("\top = open/read/pread/write/pwrite/close\n");
+	printf("\top = open/read/pread/write/pwrite/fsync/fdatasync/close\n");
 	printf("\tfd = int\n");
 	printf("\tfn/filename = string\n");
 	printf("\tof/openflags = [+]creat|trunc\n");
