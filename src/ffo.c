@@ -1,6 +1,6 @@
 #include "ffo.h"
 
-#define CMD_BUF_LEN (128)
+#define CMD_BUF_LEN (256)
 #define MAX_PATH_LEN (64)
 static char *greetings = "Welcome to use flexible file operator.\n";
 
@@ -12,6 +12,7 @@ enum {
 	INP_EXECUTE,
 	INP_RUNSCRIPT,
 	INP_PRINT,
+	INP_ALLINONE,
 };
 
 enum operation {
@@ -86,8 +87,9 @@ void parse_open_flags(struct operation_info *opi, char *value_base)
 
 /*
  * ubuf must end with '\0'.
+ * ubuf="aaa=bbb\0"
  */
-static void set_property(struct operation_info *opi, char *ubuf)
+static void set_property_one(struct operation_info *opi, char *ubuf)
 {
 	int buflen;
 	char *arg_base, *value_base;
@@ -96,9 +98,9 @@ static void set_property(struct operation_info *opi, char *ubuf)
 	int value_start;
 
 	buflen = strlen(ubuf);
-	if (buflen<2)
+	if (buflen<1)
 		return;
-	for (arg_start=1;arg_start<buflen;arg_start++) {
+	for (arg_start=0;arg_start<buflen;arg_start++) {
 		if (is_letter(ubuf[arg_start]))
 			goto ARG_START_FOUND;
 	}
@@ -151,6 +153,39 @@ VALUE_START_FOUND:
 		return;
 	}
 
+}
+
+/*
+ * ubuf="aaa=bbb;ccc=ddd;eee=fff\0"
+ */
+static void set_properties(struct operation_info *opi, char *ubuf)
+{
+	int buflen;
+	char *start;
+	char *p;
+
+	buflen = strlen(ubuf);
+	if (buflen<2)
+		return;
+
+	start = ubuf;
+
+GO_ON:
+	if ((!*start) || (*start == ';'))
+		return;
+	p = start;
+	while ((*p != ';') && (*p != '\0'))
+		p++;
+	if (';' == *p) {
+		*p = '\0';
+		set_property_one(opi, start);
+		start = p + 1;
+		goto GO_ON;
+	} else {
+		//Last one
+		set_property_one(opi, start);
+	}
+	
 }
 
 static ssize_t do_read(struct operation_info *opi)
@@ -227,10 +262,12 @@ static void execute_operation(struct operation_info *opi)
 static void print_manual(void)
 {
 	printf("Command action:\n");
-	printf("   s @arg=@value\tSet @arg as @value\n");
+	printf("   s @arg1=@value1;@arg2=@value2;...\n");
+	printf("   \t\t\tSet @arg as @value\n");
 	printf("   e\t\t\tExecute\n");
 	printf("   r @scriptfile\tRun a script\n");
 	printf("   p\t\t\tPrint the current operation properties\n");
+	printf("   a @cmd\t\t\tAll-in-one execution\n");
 	printf("   m\t\t\tPrint this manual\n");
 	printf("   q\t\t\tQuit\n");
 	printf("\n");
@@ -268,6 +305,9 @@ static int get_usr_command(char *usr_cmd_buf)
 		if (!len) {
 			switch (ch)
 			{
+			case 'a':
+				ret = INP_ALLINONE;
+				break;
 			case 's':
 				ret = INP_SET;
 				break;
@@ -312,6 +352,16 @@ static void print_properties(struct operation_info *opinfo)
 	printf("\trwcount=%d\n", opinfo->rwcount);
 }
 
+
+void exec_allinone(char *ubuf)
+{
+	struct operation_info opinfo;
+
+	reset_command_info(&opinfo);
+	printf("Not supported yet.\n");
+}
+
+
 int main(int argc, char *argv[])
 {
 	int inp;
@@ -329,7 +379,7 @@ int main(int argc, char *argv[])
 			print_properties(&opinfo);
 			break;
 		case INP_SET:
-			set_property(&opinfo, usr_cmd_buf);
+			set_properties(&opinfo, &usr_cmd_buf[1]);
 			print_properties(&opinfo);
 			break;
 		case INP_EXECUTE:
@@ -344,6 +394,9 @@ int main(int argc, char *argv[])
 			break;
 		case INP_MANUAL:
 			print_manual();
+			break;
+		case INP_ALLINONE:
+			exec_allinone(usr_cmd_buf);
 			break;
 		case INP_END:
 			goto OUT_CLEANUP;
