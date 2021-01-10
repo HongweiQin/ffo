@@ -19,7 +19,9 @@ enum operation {
 	OP_NONE = 0,
 	OP_OPEN,
 	OP_READ,
+	OP_PREAD,
 	OP_WRITE,
+	OP_PWRITE,
 	OP_CLOSE,
 	OP_NUM,
 };
@@ -41,6 +43,7 @@ struct operation_info {
 
 /* For read/write */
 	size_t rwcount;
+	off_t offset;
 };
 
 int is_letter(char ch)
@@ -130,8 +133,12 @@ VALUE_START_FOUND:
 			opi->op = OP_OPEN;
 		else if (!strcmp(value_base, "read"))
 			opi->op = OP_READ;
+		else if (!strcmp(value_base, "pread"))
+			opi->op = OP_PREAD;
 		else if (!strcmp(value_base, "write"))
 			opi->op = OP_WRITE;
+		else if (!strcmp(value_base, "pwrite"))
+			opi->op = OP_PWRITE;
 		else if (!strcmp(value_base, "close"))
 			opi->op = OP_CLOSE;
 		return;
@@ -150,6 +157,10 @@ VALUE_START_FOUND:
 	}
 	if (!strcmp(arg_base, "rwcount")) {
 		opi->rwcount = atoi(value_base);
+		return;
+	}
+	if (!strcmp(arg_base, "offset")) {
+		opi->offset = atol(value_base);
 		return;
 	}
 
@@ -208,6 +219,27 @@ static ssize_t do_read(struct operation_info *opi)
 	return ret;
 }
 
+static ssize_t do_pread(struct operation_info *opi)
+{
+	ssize_t ret;
+	void *buf;
+
+	if (opi->fd == 0 || opi->fd == 0) {
+		printf("Oops..fd=%d\n", opi->fd);
+		return 0;
+	}
+
+	buf = malloc(opi->rwcount);
+	if (!buf) {
+		printf("malloc failed\n");
+		return -1;
+	}
+	ret = pread(opi->fd, buf, opi->rwcount, opi->offset);
+	free(buf);
+	return ret;
+}
+
+
 static ssize_t do_write(struct operation_info *opi)
 {
 	ssize_t ret;
@@ -228,6 +260,25 @@ static ssize_t do_write(struct operation_info *opi)
 	return ret;
 }
 
+static ssize_t do_pwrite(struct operation_info *opi)
+{
+	ssize_t ret;
+	void *buf;
+
+	if (opi->fd == 0 || opi->fd == 0) {
+		printf("Oops..fd=%d\n", opi->fd);
+		return 0;
+	}
+
+	buf = malloc(opi->rwcount);
+	if (!buf) {
+		printf("malloc failed\n");
+		return -1;
+	}
+	ret = pwrite(opi->fd, buf, opi->rwcount, opi->offset);
+	free(buf);
+	return ret;
+}
 
 static void execute_operation(struct operation_info *opi)
 {
@@ -252,6 +303,14 @@ static void execute_operation(struct operation_info *opi)
 		ret2 = do_write(opi);
 		printf("write(fd=%d) return with %d\n", opi->fd, ret2);
 		break;
+	case OP_PWRITE:
+		ret2 = do_pwrite(opi);
+		printf("pwrite(fd=%d) return with %d\n", opi->fd, ret2);
+		break;
+	case OP_PREAD:
+		ret2 = do_pread(opi);
+		printf("pread(fd=%d) return with %d\n", opi->fd, ret2);
+		break;
 	default:
 		printf("Execute nothing\n");
 		return;
@@ -264,21 +323,26 @@ static void print_manual(void)
 	printf("Command action:\n");
 	printf("   s @arg1=@value1;@arg2=@value2;...\n");
 	printf("   \t\t\tSet @arg as @value\n");
+	printf("\n");
 	printf("   e\t\t\tExecute\n");
 	printf("   r @scriptfile\tRun a script\n");
 	printf("   p\t\t\tPrint the current operation properties\n");
-	printf("   a @cmd\t\t\tAll-in-one execution\n");
+	printf("   a @cmd\n");
+	printf("   \t\t\tOne-line execution\n");
+	printf("   \t\t\tEquals to \'s @cmd\' then \'e\' \n");
+	printf("\n");
 	printf("   m\t\t\tPrint this manual\n");
 	printf("   q\t\t\tQuit\n");
 	printf("\n");
 
 	printf("Arguments and values for s:\n");
-	printf("\top = open/read/write/close\n");
+	printf("\top = open/read/pread/write/pwrite/close\n");
 	printf("\tfd = int\n");
 	printf("\tfn/filename = string\n");
 	printf("\tof/openflags = [+]creat|trunc\n");
 	printf("\t\tNote: no space nearby \'|\'\n");
 	printf("\trwcount = int\n");
+	printf("\toffset = long\n");
 }
 
 static void reset_command_info(struct operation_info *opinfo)
